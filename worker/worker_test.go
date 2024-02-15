@@ -1,4 +1,4 @@
-package main
+package worker
 
 import (
 	"fmt"
@@ -10,17 +10,9 @@ import (
 
 func TestTaskProcessingTimeLimit(t *testing.T) {
 
-	processingTimes = []time.Duration{
-		time.Millisecond * 100,
-		time.Millisecond * 200,
-		time.Millisecond * 300,
-	}
-
-	maxProcessingTimesToTrack = 3
-
 	tasks := []int64{3}
 	expectedResults := []*big.Int{
-		big.NewInt(0), // 0 mert
+		big.NewInt(0),
 	}
 
 	simulateDelay = func() {
@@ -32,15 +24,27 @@ func TestTaskProcessingTimeLimit(t *testing.T) {
 	resultChannel := make(chan Result, len(tasks))
 
 	var wg sync.WaitGroup
+	testWorker := New(1, taskChannel, resultChannel, &wg)
+
+	testWorker.maxProcessingTimesToTrack = 3
+	testWorker.processingTimes = []time.Duration{
+		time.Millisecond * 100,
+		time.Millisecond * 200,
+		time.Millisecond * 300,
+	}
+
 	wg.Add(1)
-	go Worker(1, taskChannel, resultChannel, &wg)
+	go testWorker.Start()
 
 	for i, task := range tasks {
 		taskChannel <- Task{ID: i, Value: task}
 	}
 	close(taskChannel)
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(resultChannel)
+	}()
 
 	for i, expectedResult := range expectedResults {
 		result := <-resultChannel
@@ -59,33 +63,37 @@ func TestTaskProcessingOrder(t *testing.T) {
 		big.NewInt(5040), // 7!
 	}
 
-	maxProcessingTimesToTrack = 5
-
 	taskChannel := make(chan Task, len(tasks))
 	resultChannel := make(chan Result, len(tasks))
 
 	var wg sync.WaitGroup
+	testWorker := New(1, taskChannel, resultChannel, &wg)
+	// override
+	testWorker.maxProcessingTimesToTrack = 5
+
 	wg.Add(1)
-	go Worker(1, taskChannel, resultChannel, &wg)
+	go testWorker.Start()
 
 	for i, task := range tasks {
 		taskChannel <- Task{ID: i, Value: task}
-
 	}
 	close(taskChannel)
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(resultChannel)
+	}()
+
+	sortedResults := SortResults(resultChannel, len(tasks))
 
 	for i, expectedResult := range expectedResults {
-		result := <-resultChannel
-
-		if result.Factorial.Cmp(expectedResult) != 0 {
-			t.Errorf("Task %d expected result %v, got %v", tasks[i], expectedResult, result.Factorial)
+		if sortedResults[i].Factorial.Cmp(expectedResult) != 0 {
+			t.Errorf("Task %d expected result %v, got %v", tasks[i], expectedResult, sortedResults[i].Factorial)
 		}
 	}
 }
 
-func TestFactorial(t *testing.T) {
+func TestCalcFactorial(t *testing.T) {
 	tests := []struct {
 		name     string
 		n        int64
@@ -101,7 +109,7 @@ func TestFactorial(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d_%s", i, test.name), func(t *testing.T) {
-			result := Factorial(test.n)
+			result := calcFactorial(test.n)
 			if result.String() != test.expected {
 				t.Errorf("Expected %s, got %s", test.expected, result.String())
 			}
@@ -112,14 +120,16 @@ func TestFactorial(t *testing.T) {
 // TestCalculateAverageProcessingTime tests the calculateAverageProcessingTime function to ensure
 // it correctly calculates the average processing time from a set of durations.
 func TestCalculateAverageProcessingTime(t *testing.T) {
+	testWorker := New(1, nil, nil, nil)
+
 	// Setup: Clear and then set predefined processing times for testing
-	processingTimes = []time.Duration{} // Clear existing processing times
+	testWorker.processingTimes = []time.Duration{} // Clear existing processing times
 	testDurations := []time.Duration{
 		time.Millisecond * 100,
 		time.Millisecond * 200,
 		time.Millisecond * 300,
 	}
-	processingTimes = append(processingTimes, testDurations...)
+	testWorker.processingTimes = append(testWorker.processingTimes, testDurations...)
 
 	// Expected average calculation
 	var expectedSum time.Duration
@@ -129,7 +139,7 @@ func TestCalculateAverageProcessingTime(t *testing.T) {
 	expectedAverage := expectedSum / time.Duration(len(testDurations))
 
 	// Test: Calculate the average processing time
-	average := calculateAverageProcessingTime()
+	average := testWorker.calculateAverageProcessingTime()
 
 	// Assert: Check if the calculated average is as expected
 	if average != expectedAverage {
