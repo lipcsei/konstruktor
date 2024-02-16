@@ -90,7 +90,7 @@ func (w *Worker) Start() {
 
 		// Check if the processing time exceeds the allowed time threshold
 		if processingTime > 0 && averageTime > 0 && processingTime > allowedTimeThreshold {
-			result = big.NewInt(0) // Set the result to 0 if it exceeded the time maxProcessingTimesToTrack
+			result = big.NewInt(0) // Override the factorial result with 0.
 		}
 
 		// Send the result (either the calculated factorial or 0) to the results channel.
@@ -115,18 +115,26 @@ func (w *Worker) updateProcessingTimes(processingTime time.Duration) {
 	w.processingTimes = append(w.processingTimes, processingTime)
 }
 
-// calculateAverageProcessingTime calculates the average processing time of the last maxProcessingTimesToTrack tasks.
+// calculateAverageProcessingTime computes the average processing time of the most recent tasks,
+// up to the number specified by maxProcessingTimesToTrack.
+// It locks the processingTimes slice during calculation to ensure thread-safe access.
+// Returns 0 if there are no recorded processing times.
 func (w *Worker) calculateAverageProcessingTime() time.Duration {
 	w.processingTimesLock.Lock()
 	defer w.processingTimesLock.Unlock()
 
 	var sum time.Duration
+	// Sum up all recorded processing times.
 	for _, t := range w.processingTimes {
 		sum += t
 	}
+
+	// Avoid division by zero if no processing times are recorded.
 	if len(w.processingTimes) == 0 {
 		return 0
 	}
+
+	// Calculate and return the average processing time.
 	return sum / time.Duration(len(w.processingTimes))
 }
 
