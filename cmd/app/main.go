@@ -1,9 +1,18 @@
 package main
 
 import (
+	/*
+		int isEven(int number) {
+		    return number % 2 == 0;
+		}
+	*/
+	"C"
 	"fmt"
 	"github.com/lipcsei/konstruktor/worker"
+	"log"
+	"math/big"
 	"runtime"
+	"strconv"
 	"sync"
 )
 
@@ -45,6 +54,20 @@ func main() {
 
 	// Collect and print the results. SortResults organizes results into their original order based on task ID.
 	for _, result := range worker.SortResults(results, numTasks) {
-		fmt.Printf("%d. task: %d! = %d\n", result.Task.ID, result.Task.Value, result.Factorial)
+		if result.Factorial.Cmp(big.NewInt(0)) != 0 {
+			runes := []rune(result.Factorial.String())
+			lastRune := fmt.Sprintf("%c", runes[len(runes)-1])
+			lastDigit, err := strconv.Atoi(lastRune)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if lastDigit == 0 || (lastDigit != 0 && C.isEven(C.int(lastDigit)) == 1) {
+				log.Printf("%d worker finishe the %d. task: %d! = %d The result is an even number. \n", result.WorkerID, result.Task.ID, result.Task.Value, result.Factorial)
+			}
+		} else {
+			log.Printf("%d. task: %d! != %d The computation failed due to a timeout. \n", result.Task.ID, result.Task.Value, result.Factorial)
+		}
 	}
+
 }
