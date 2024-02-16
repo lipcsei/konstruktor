@@ -82,12 +82,8 @@ func (w *Worker) Start() {
 		// Calculate the current average processing time of recent tasks.
 		averageTime := w.calculateAverageProcessingTime()
 
-		w.processingTimesLock.Lock()
-		if len(w.processingTimes) >= w.maxProcessingTimesToTrack {
-			w.processingTimes = w.processingTimes[1:] // Az első elem eltávolítása
-		}
-		w.processingTimes = append(w.processingTimes, processingTime)
-		w.processingTimesLock.Unlock()
+		// Update the processingTimes slice.
+		w.updateProcessingTimes(processingTime)
 
 		// Calculate the allowed time threshold as 10% above the average time
 		allowedTimeThreshold := averageTime + (averageTime / 10)
@@ -102,6 +98,24 @@ func (w *Worker) Start() {
 	}
 }
 
+// updateProcessingTimes updates the slice of processing times with the latest task processing time.
+// It ensures that the slice does not exceed the maximum number of processing times to track.
+// Older processing times are removed to maintain the size limit.
+func (w *Worker) updateProcessingTimes(processingTime time.Duration) {
+	w.processingTimesLock.Lock()
+	defer w.processingTimesLock.Unlock()
+
+	// Check if the processing times slice has reached its maximum capacity.
+	if len(w.processingTimes) >= w.maxProcessingTimesToTrack {
+		// Remove the oldest processing time to make room for the new one.
+		w.processingTimes = w.processingTimes[1:]
+	}
+
+	// Add the new processing time to the end of the slice.
+	w.processingTimes = append(w.processingTimes, processingTime)
+}
+
+// calculateAverageProcessingTime calculates the average processing time of the last maxProcessingTimesToTrack tasks.
 func (w *Worker) calculateAverageProcessingTime() time.Duration {
 	w.processingTimesLock.Lock()
 	defer w.processingTimesLock.Unlock()
