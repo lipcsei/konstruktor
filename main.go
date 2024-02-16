@@ -13,8 +13,12 @@ const numTasks = 100
 func main() {
 
 	// Create channels for tasks and results with a capacity of numTasks.
-	tasks := make(chan worker.Task, numTasks)
-	results := make(chan worker.Result, numTasks)
+	tasks := make(chan worker.Task, numTasks)     // The tasks channel is used to send tasks to the workers.
+	results := make(chan worker.Result, numTasks) // The results channel is for receiving processed tasks from the workers.
+
+	// quit is a channel used to signal workers to stop processing and exit gracefully.
+	// This is particularly useful for terminating workers once all tasks have been processed.
+	quit := make(chan struct{})
 
 	// Start a goroutine to generate tasks
 	go worker.GenerateTasks(numTasks, tasks)
@@ -28,18 +32,18 @@ func main() {
 		// Increment the WaitGroup counter for each worker.
 		wg.Add(1)
 		// Initialize a new worker.
-		w := worker.New(workerID, tasks, results, &wg)
+		w := worker.New(workerID, tasks, results, &wg, quit)
 		// Start the worker in a new goroutine.
 		go w.Start()
 	}
 
-	// Start a goroutine to close the results channel once all workers have finished.
 	go func() {
-		wg.Wait()
-		close(results)
+		wg.Wait()      // Wait for all workers to finish.
+		close(results) // Close the results channel to signal completion of result processing.
+		close(quit)    // Close the quit channel as a final step, signaling any remaining workers to terminate.
 	}()
 
-	// Collect and print the results. SortResults organizes results into their original order.
+	// Collect and print the results. SortResults organizes results into their original order based on task ID.
 	for _, result := range worker.SortResults(results, numTasks) {
 		fmt.Printf("%d. task: %d! = %d\n", result.Task.ID, result.Task.Value, result.Factorial)
 	}

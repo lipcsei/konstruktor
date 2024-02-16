@@ -39,6 +39,8 @@ type Worker struct {
 	tasks <-chan Task
 	// results is a channel to which the worker sends processed tasks.
 	results chan<- Result
+	// quit is a channel used to signal the worker to gracefully shut down.
+	quit <-chan struct{}
 	// wg is used to signal when the worker has finished processing.
 	wg *sync.WaitGroup
 	// processingTimes stores the processing times of recent tasks.
@@ -50,51 +52,66 @@ type Worker struct {
 }
 
 // New initializes and returns a new Worker instance.
-func New(id int, tasks <-chan Task, results chan<- Result, wg *sync.WaitGroup) Worker {
+func New(id int, tasks <-chan Task, results chan<- Result, wg *sync.WaitGroup, quit <-chan struct{}) Worker {
 	return Worker{
 		ID:                        id,
 		tasks:                     tasks,
 		results:                   results,
+		quit:                      quit,
 		wg:                        wg,
 		maxProcessingTimesToTrack: maxProcessingTimesToTrack,
 	}
 }
 
-// Start begins processing tasks from the tasks channel.
-// For each task, it calculates the factorial, taking into account a possible delay and processing time limits.
+// Start is the main method of the Worker, where it begins processing tasks from the tasks channel.
+// It listens for tasks to process and quit signals for shutdown, utilizing a select statement to handle
+// both concurrently. If a quit signal is received, the worker stops processing and exits.
 func (w *Worker) Start() {
 	defer w.wg.Done()
-	for task := range w.tasks {
-		// Record the start time of the task processing to measure its duration.
-		startTime := time.Now()
 
-		if simulateDelay != nil {
-			// If a delay function is defined, invoke it. Useful for testing.
-			simulateDelay()
+	for {
+		select {
+		// Attempt to receive a task from the tasks channel.
+		case task, ok := <-w.tasks:
+			if !ok {
+				// If the tasks channel is closed, exit the loop and end the goroutine.
+				return
+			}
+
+			// Record the start time of the task processing to measure its duration.
+			startTime := time.Now()
+
+			if simulateDelay != nil {
+				// If a delay function is defined, invoke it. Useful for testing.
+				simulateDelay()
+			}
+
+			// Calculate the factorial of the task's value.
+			result := calcFactorial(task.Value)
+
+			// Determine the total processing time for the task.
+			processingTime := time.Since(startTime)
+
+			// Calculate the current average processing time of recent tasks.
+			averageTime := w.calculateAverageProcessingTime()
+
+			// Update the processingTimes slice.
+			w.updateProcessingTimes(processingTime)
+
+			// Calculate the allowed time threshold as 10% above the average time
+			allowedTimeThreshold := averageTime + (averageTime / 10)
+
+			// Check if the processing time exceeds the allowed time threshold
+			if processingTime > 0 && averageTime > 0 && processingTime > allowedTimeThreshold {
+				result = big.NewInt(0) // Override the factorial result with 0.
+			}
+
+			// Send the result (either the calculated factorial or 0) to the results channel.
+			w.results <- Result{Task: task, Factorial: result}
+		case <-w.quit:
+			// If a quit signal is received, exit the loop and end the goroutine.
+			return
 		}
-
-		// Calculate the factorial of the task's value.
-		result := calcFactorial(task.Value)
-
-		// Determine the total processing time for the task.
-		processingTime := time.Since(startTime)
-
-		// Calculate the current average processing time of recent tasks.
-		averageTime := w.calculateAverageProcessingTime()
-
-		// Update the processingTimes slice.
-		w.updateProcessingTimes(processingTime)
-
-		// Calculate the allowed time threshold as 10% above the average time
-		allowedTimeThreshold := averageTime + (averageTime / 10)
-
-		// Check if the processing time exceeds the allowed time threshold
-		if processingTime > 0 && averageTime > 0 && processingTime > allowedTimeThreshold {
-			result = big.NewInt(0) // Override the factorial result with 0.
-		}
-
-		// Send the result (either the calculated factorial or 0) to the results channel.
-		w.results <- Result{Task: task, Factorial: result}
 	}
 }
 
