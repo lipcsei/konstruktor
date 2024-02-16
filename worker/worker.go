@@ -31,6 +31,8 @@ type Result struct {
 	Task Task
 	// Factorial is the calculated factorial of the task's value.
 	Factorial *big.Int
+	// WorkerID identifies the worker that completed processing the task.
+	WorkerID int
 }
 
 type Worker struct {
