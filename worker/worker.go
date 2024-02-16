@@ -45,8 +45,6 @@ type Worker struct {
 	wg *sync.WaitGroup
 	// processingTimes stores the processing times of recent tasks.
 	processingTimes []time.Duration
-	// processingTimesLock synchronizes access to the processingTimes slice.
-	processingTimesLock sync.Mutex
 	// maxProcessingTimesToTrack is the maximum number of processing times to consider for calculating the average.
 	maxProcessingTimesToTrack int
 }
@@ -119,8 +117,6 @@ func (w *Worker) Start() {
 // It ensures that the slice does not exceed the maximum number of processing times to track.
 // Older processing times are removed to maintain the size limit.
 func (w *Worker) updateProcessingTimes(processingTime time.Duration) {
-	w.processingTimesLock.Lock()
-	defer w.processingTimesLock.Unlock()
 
 	// Check if the processing times slice has reached its maximum capacity.
 	if len(w.processingTimes) >= w.maxProcessingTimesToTrack {
@@ -137,8 +133,6 @@ func (w *Worker) updateProcessingTimes(processingTime time.Duration) {
 // It locks the processingTimes slice during calculation to ensure thread-safe access.
 // Returns 0 if there are no recorded processing times.
 func (w *Worker) calculateAverageProcessingTime() time.Duration {
-	w.processingTimesLock.Lock()
-	defer w.processingTimesLock.Unlock()
 
 	var sum time.Duration
 	// Sum up all recorded processing times.
