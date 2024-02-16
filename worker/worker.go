@@ -52,8 +52,8 @@ type Worker struct {
 }
 
 // New initializes and returns a new Worker instance.
-func New(id int, tasks <-chan Task, results chan<- Result, wg *sync.WaitGroup, quit <-chan struct{}) Worker {
-	return Worker{
+func New(id int, tasks <-chan Task, results chan<- Result, wg *sync.WaitGroup, quit <-chan struct{}) *Worker {
+	return &Worker{
 		ID:                        id,
 		tasks:                     tasks,
 		results:                   results,
