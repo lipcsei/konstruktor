@@ -29,7 +29,7 @@ func TestWorker_Start_TaskProcessingTimeLimit(t *testing.T) {
 	testWorker := New(1, taskChannel, resultChannel, &wg, quit)
 
 	testWorker.maxProcessingTimesToTrack = 3
-	testWorker.processingTimes = []time.Duration{
+	processingTimes = []time.Duration{
 		time.Millisecond * 100,
 		time.Millisecond * 200,
 		time.Millisecond * 300,
@@ -128,13 +128,13 @@ func TestCalculateAverageProcessingTime(t *testing.T) {
 	testWorker := New(1, nil, nil, nil, nil)
 
 	// Setup: Clear and then set predefined processing times for testing
-	testWorker.processingTimes = []time.Duration{} // Clear existing processing times
+	processingTimes = []time.Duration{} // Clear existing processing times
 	testDurations := []time.Duration{
 		time.Millisecond * 100,
 		time.Millisecond * 200,
 		time.Millisecond * 300,
 	}
-	testWorker.processingTimes = append(testWorker.processingTimes, testDurations...)
+	processingTimes = append(processingTimes, testDurations...)
 
 	// Expected average calculation
 	var expectedSum time.Duration

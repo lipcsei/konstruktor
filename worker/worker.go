@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// processingTimes stores the processing times of recent tasks.
+var processingTimes []time.Duration
+
+// processingTimesLock synchronizes access to the processingTimes slice.
+var processingTimeLock sync.Mutex
+
 // maxProcessingTimesToTrack specifies the length of the slice that stores processing times of tasks.
 // This is used to calculate the average processing time by keeping a limited history of recent processing times.
 const maxProcessingTimesToTrack = 20
@@ -45,8 +51,7 @@ type Worker struct {
 	quit <-chan struct{}
 	// wg is used to signal when the worker has finished processing.
 	wg *sync.WaitGroup
-	// processingTimes stores the processing times of recent tasks.
-	processingTimes []time.Duration
+
 	// maxProcessingTimesToTrack is the maximum number of processing times to consider for calculating the average.
 	maxProcessingTimesToTrack int
 }
@@ -119,15 +124,16 @@ func (w *Worker) Start() {
 // It ensures that the slice does not exceed the maximum number of processing times to track.
 // Older processing times are removed to maintain the size limit.
 func (w *Worker) updateProcessingTimes(processingTime time.Duration) {
-
+	processingTimeLock.Lock()
+	defer processingTimeLock.Unlock()
 	// Check if the processing times slice has reached its maximum capacity.
-	if len(w.processingTimes) >= w.maxProcessingTimesToTrack {
+	if len(processingTimes) >= w.maxProcessingTimesToTrack {
 		// Remove the oldest processing time to make room for the new one.
-		w.processingTimes = w.processingTimes[1:]
+		processingTimes = processingTimes[1:]
 	}
 
 	// Add the new processing time to the end of the slice.
-	w.processingTimes = append(w.processingTimes, processingTime)
+	processingTimes = append(processingTimes, processingTime)
 }
 
 // calculateAverageProcessingTime computes the average processing time of the most recent tasks,
@@ -135,20 +141,21 @@ func (w *Worker) updateProcessingTimes(processingTime time.Duration) {
 // It locks the processingTimes slice during calculation to ensure thread-safe access.
 // Returns 0 if there are no recorded processing times.
 func (w *Worker) calculateAverageProcessingTime() time.Duration {
-
+	processingTimeLock.Lock()
+	defer processingTimeLock.Unlock()
 	var sum time.Duration
 	// Sum up all recorded processing times.
-	for _, t := range w.processingTimes {
+	for _, t := range processingTimes {
 		sum += t
 	}
 
 	// Avoid division by zero if no processing times are recorded.
-	if len(w.processingTimes) == 0 {
+	if len(processingTimes) == 0 {
 		return 0
 	}
 
 	// Calculate and return the average processing time.
-	return sum / time.Duration(len(w.processingTimes))
+	return sum / time.Duration(len(processingTimes))
 }
 
 // SortResults sorts the results based on their task ID and returns a slice of sorted results.
