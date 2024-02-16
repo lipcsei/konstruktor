@@ -107,7 +107,7 @@ func (w *Worker) Start() {
 			}
 
 			// Send the result (either the calculated factorial or 0) to the results channel.
-			w.results <- Result{Task: task, Factorial: result}
+			w.results <- Result{Task: task, Factorial: result, WorkerID: w.ID}
 		case <-w.quit:
 			// If a quit signal is received, exit the loop and end the goroutine.
 			return
