@@ -8,13 +8,14 @@ import (
 	"time"
 )
 
-func TestTaskProcessingTimeLimit(t *testing.T) {
-
+func TestWorker_Start_TaskProcessingTimeLimit(t *testing.T) {
+	// Setup tasks with a single task value. In this case, the task will be forced to exceed processing time limits.
 	tasks := []int64{3}
 	expectedResults := []*big.Int{
-		big.NewInt(0),
+		big.NewInt(0), // Expecting a result of 0 due to processing time limit exceeded.
 	}
 
+	// Simulate a delay in task processing to trigger the processing time limit.
 	simulateDelay = func() {
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -22,9 +23,10 @@ func TestTaskProcessingTimeLimit(t *testing.T) {
 
 	taskChannel := make(chan Task, len(tasks))
 	resultChannel := make(chan Result, len(tasks))
+	quit := make(chan struct{})
 
 	var wg sync.WaitGroup
-	testWorker := New(1, taskChannel, resultChannel, &wg)
+	testWorker := New(1, taskChannel, resultChannel, &wg, quit)
 
 	testWorker.maxProcessingTimesToTrack = 3
 	testWorker.processingTimes = []time.Duration{
@@ -44,6 +46,7 @@ func TestTaskProcessingTimeLimit(t *testing.T) {
 	go func() {
 		wg.Wait()
 		close(resultChannel)
+		close(quit)
 	}()
 
 	for i, expectedResult := range expectedResults {
@@ -54,7 +57,7 @@ func TestTaskProcessingTimeLimit(t *testing.T) {
 	}
 }
 
-func TestTaskProcessingOrder(t *testing.T) {
+func TestWorker_Start_TaskProcessingOrder(t *testing.T) {
 
 	tasks := []int64{3, 5, 7}
 	expectedResults := []*big.Int{
@@ -65,9 +68,10 @@ func TestTaskProcessingOrder(t *testing.T) {
 
 	taskChannel := make(chan Task, len(tasks))
 	resultChannel := make(chan Result, len(tasks))
+	quit := make(chan struct{})
 
 	var wg sync.WaitGroup
-	testWorker := New(1, taskChannel, resultChannel, &wg)
+	testWorker := New(1, taskChannel, resultChannel, &wg, quit)
 	// override
 	testWorker.maxProcessingTimesToTrack = 5
 
@@ -82,6 +86,7 @@ func TestTaskProcessingOrder(t *testing.T) {
 	go func() {
 		wg.Wait()
 		close(resultChannel)
+		close(quit)
 	}()
 
 	sortedResults := SortResults(resultChannel, len(tasks))
@@ -120,7 +125,7 @@ func TestCalcFactorial(t *testing.T) {
 // TestCalculateAverageProcessingTime tests the calculateAverageProcessingTime function to ensure
 // it correctly calculates the average processing time from a set of durations.
 func TestCalculateAverageProcessingTime(t *testing.T) {
-	testWorker := New(1, nil, nil, nil)
+	testWorker := New(1, nil, nil, nil, nil)
 
 	// Setup: Clear and then set predefined processing times for testing
 	testWorker.processingTimes = []time.Duration{} // Clear existing processing times
