@@ -13,7 +13,7 @@ RUN go test ./... -coverprofile=coverage.out
 RUN go tool cover -func=coverage.out
 
 # Build the Go application
-RUN go build -o konstruktor-test .
+RUN go build -o konstruktor-test ./cmd/app
 
 # Command to run the executable
 CMD ["./konstruktor-test"]
