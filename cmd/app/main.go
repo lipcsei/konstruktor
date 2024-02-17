@@ -8,6 +8,8 @@ import (
 	*/
 	"C"
 	"fmt"
+	"github.com/lipcsei/konstruktor/generator"
+	"github.com/lipcsei/konstruktor/model"
 	"github.com/lipcsei/konstruktor/worker"
 	"log"
 	"math/big"
@@ -22,15 +24,15 @@ const numTasks = 100
 func main() {
 
 	// Create channels for tasks and results with a capacity of numTasks.
-	tasks := make(chan worker.Task, numTasks)     // The tasks channel is used to send tasks to the workers.
-	results := make(chan worker.Result, numTasks) // The results channel is for receiving processed tasks from the workers.
+	tasks := make(chan model.Task, numTasks)     // The tasks channel is used to send tasks to the workers.
+	results := make(chan model.Result, numTasks) // The results channel is for receiving processed tasks from the workers.
 
 	// quit is a channel used to signal workers to stop processing and exit gracefully.
 	// This is particularly useful for terminating workers once all tasks have been processed.
 	quit := make(chan struct{})
 
 	// Start a goroutine to generate tasks
-	go worker.GenerateTasks(numTasks, tasks)
+	go generator.GenerateTasks(numTasks, tasks)
 
 	// wg is a WaitGroup to wait for all worker goroutines to finish processing.
 	var wg sync.WaitGroup
@@ -52,7 +54,13 @@ func main() {
 		close(quit)    // Close the quit channel as a final step, signaling any remaining workers to terminate.
 	}()
 
-	// Collect and print the results. SortResults organizes results into their original order based on task ID.
+	printResult(results)
+
+}
+
+// printResult collect and print the results.
+func printResult(results chan model.Result) {
+	// SortResults organizes results into their original order based on task ID.
 	for _, result := range worker.SortResults(results, numTasks) {
 		if result.Factorial.Cmp(big.NewInt(0)) != 0 {
 			runes := []rune(result.Factorial.String())
@@ -69,5 +77,4 @@ func main() {
 			log.Printf("%d. task: %d! != %d The computation failed due to a timeout. \n", result.Task.ID, result.Task.Value, result.Factorial)
 		}
 	}
-
 }
