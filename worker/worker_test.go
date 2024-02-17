@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"fmt"
+	"github.com/lipcsei/konstruktor/model"
 	"math/big"
 	"sync"
 	"testing"
@@ -21,8 +21,8 @@ func TestWorker_Start_TaskProcessingTimeLimit(t *testing.T) {
 	}
 	defer func() { simulateDelay = nil }()
 
-	taskChannel := make(chan Task, len(tasks))
-	resultChannel := make(chan Result, len(tasks))
+	taskChannel := make(chan model.Task, len(tasks))
+	resultChannel := make(chan model.Result, len(tasks))
 	quit := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -39,7 +39,7 @@ func TestWorker_Start_TaskProcessingTimeLimit(t *testing.T) {
 	go testWorker.Start()
 
 	for i, task := range tasks {
-		taskChannel <- Task{ID: i, Value: task}
+		taskChannel <- model.Task{ID: i, Value: task}
 	}
 	close(taskChannel)
 
@@ -66,8 +66,8 @@ func TestWorker_Start_TaskProcessingOrder(t *testing.T) {
 		big.NewInt(5040), // 7!
 	}
 
-	taskChannel := make(chan Task, len(tasks))
-	resultChannel := make(chan Result, len(tasks))
+	taskChannel := make(chan model.Task, len(tasks))
+	resultChannel := make(chan model.Result, len(tasks))
 	quit := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -79,7 +79,7 @@ func TestWorker_Start_TaskProcessingOrder(t *testing.T) {
 	go testWorker.Start()
 
 	for i, task := range tasks {
-		taskChannel <- Task{ID: i, Value: task}
+		taskChannel <- model.Task{ID: i, Value: task}
 	}
 	close(taskChannel)
 
@@ -95,30 +95,6 @@ func TestWorker_Start_TaskProcessingOrder(t *testing.T) {
 		if sortedResults[i].Factorial.Cmp(expectedResult) != 0 {
 			t.Errorf("Task %d expected result %v, got %v", tasks[i], expectedResult, sortedResults[i].Factorial)
 		}
-	}
-}
-
-func TestCalcFactorial(t *testing.T) {
-	tests := []struct {
-		name     string
-		n        int64
-		expected string
-	}{
-		{"0!", -1, "0"},
-		{"0!", 0, "1"},
-		{"1!", 1, "1"},
-		{"5!", 5, "120"},
-		{"10!", 10, "3628800"},
-		{"40!", 40, "815915283247897734345611269596115894272000000000"},
-	}
-
-	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d_%s", i, test.name), func(t *testing.T) {
-			result := calcFactorial(test.n)
-			if result.String() != test.expected {
-				t.Errorf("Expected %s, got %s", test.expected, result.String())
-			}
-		})
 	}
 }
 
@@ -149,24 +125,5 @@ func TestCalculateAverageProcessingTime(t *testing.T) {
 	// Assert: Check if the calculated average is as expected
 	if average != expectedAverage {
 		t.Errorf("calculateAverageProcessingTime() = %v, want %v", average, expectedAverage)
-	}
-}
-
-func TestGenerateTasks(t *testing.T) {
-	numTasks := 100 //
-	tasksChan := make(chan Task, numTasks)
-
-	GenerateTasks(numTasks, tasksChan)
-
-	generatedTasks := 0
-	for task := range tasksChan {
-		generatedTasks++
-		if task.Value < 3 || task.Value > 1000 {
-			t.Errorf("Task value out of expected range: got %v, want between 3 and 1000", task.Value)
-		}
-	}
-
-	if generatedTasks != numTasks {
-		t.Errorf("Incorrect number of tasks generated: got %v, want %v", generatedTasks, numTasks)
 	}
 }
